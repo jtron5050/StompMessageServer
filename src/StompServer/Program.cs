@@ -27,7 +27,7 @@ namespace StompServer
             listener.Listen(120);
             Console.WriteLine("Listening...");
 
-            while(true)
+            while (true)
             {
                 var connection = await listener.AcceptAsync();
                 _ = ProcessLinesAsync(connection);
@@ -74,7 +74,7 @@ namespace StompServer
                 if (result.IsCompleted)
                 {
                     break;
-                }                 
+                }
             }
 
             writer.Complete();
@@ -82,33 +82,19 @@ namespace StompServer
 
         private async Task ReadPipeAsync(Socket connection, PipeReader reader)
         {
+            var processor = new StompFrameProcessor();
+            var handler = new StompRequestHandler();
+
             while (true)
             {
                 var readResult = await reader.ReadAsync();
                 var buffer = readResult.Buffer;
-                SequencePosition? position = null;
+                SequencePosition consumed, examined;
 
-                do
-                {
-                    position = buffer.PositionOf((byte)'\n');
-
-                    if (position != null)
-                    {
-                        // slice the line
-                        var line = buffer.Slice(buffer.Start, position.Value);
-
-                        ProcessLine(line);
-
-                        // get the sequence position after the \n
-                        var next = buffer.GetPosition(1, position.Value);
-                        // slice off the examined part of the buffer
-                        buffer = buffer.Slice(next);
-                    }               
-
-                } while (position != null);
+                processor.ProcessCommandLine(handler, buffer, out consumed, out examined);
 
                 // advance reader first char after \n.  mark all of buffer examined.
-                reader.AdvanceTo(buffer.Start, buffer.End);
+                reader.AdvanceTo(consumed, examined);
 
                 if (readResult.IsCompleted)
                 {
@@ -135,4 +121,66 @@ namespace StompServer
             Console.WriteLine();
         }
     }
+
+    public class StompConnection
+    {
+        private readonly StompFrameProcessor _processor;
+        private readonly Socket _socket;
+
+        public StompConnection(Socket socket)
+        {
+            _socket = socket;
+            _processor = new StompFrameProcessor();
+        }
+    }
+
+    public class StompRequestHandler
+    {
+        public void OnCommandLine(ReadOnlySpan<byte> command)
+        {
+            Console.WriteLine(Encoding.UTF8.GetString(command));
+        }
+    }
+
+    public class StompFrameProcessor
+    {
+        private const byte LFChar = (byte)'\n';
+
+        public bool ProcessCommandLine(StompRequestHandler handler, in ReadOnlySequence<byte> buffer, out SequencePosition consumed, out SequencePosition examined)
+        {
+            consumed = buffer.Start;
+            examined = buffer.End;
+            ReadOnlySpan<byte> span = null;
+
+            if (TryGetNewLine(buffer, out var position))
+            {
+                span = buffer.Slice(consumed, position).ToArray();
+                consumed = position;
+            }
+            else
+            {
+                return false;
+            }
+
+            handler.OnCommandLine(span);
+
+            examined = consumed;
+            return true;
+        }
+
+        private static bool TryGetNewLine(ReadOnlySequence<byte> buffer, out SequencePosition position)
+        {
+            var lfPosition = buffer.PositionOf(LFChar);
+
+            if (lfPosition != null)
+            {
+                position = buffer.GetPosition(1, lfPosition.Value);                
+                return true;
+            }
+
+            position = default;
+            return false;            
+        }
+    }
+
 }
