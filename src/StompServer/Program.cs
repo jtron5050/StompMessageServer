@@ -29,24 +29,84 @@ namespace StompServer
 
             while (true)
             {
-                var connection = await listener.AcceptAsync();
-                _ = ProcessLinesAsync(connection);
+                var socket = await listener.AcceptAsync();
+                var connection = new StompConnection(socket);
+
+                _ = HandleConnectionAsync(connection);
             }
         }
 
-        private async Task ProcessLinesAsync(Socket connection)
+        private async Task HandleConnectionAsync(StompConnection connection)
+        {
+            var connectionTask = connection.StartAsync();
+
+            await connectionTask;
+
+            //dispose
+        }
+
+        
+
+        private void ProcessLine(ReadOnlySequence<byte> lineBuffer)
+        {
+            if (lineBuffer.IsSingleSegment)
+            {
+                Console.WriteLine(Encoding.UTF8.GetString(lineBuffer.First.Span));
+                return;
+            }
+
+            foreach (var segment in lineBuffer)
+            {
+                Console.Write(Encoding.UTF8.GetString(segment.Span));
+            }
+
+            Console.WriteLine();
+        }
+    }
+
+    public class StompConnection
+    {
+        private readonly StompFrameProcessor _processor;
+        private readonly Socket _socket;
+
+        public StompConnection(Socket socket)
+        {
+            _socket = socket;
+            _processor = new StompFrameProcessor();
+        }
+
+        public Task StartAsync()
+        {
+            return ProcessLinesAsync();
+        }
+
+        private async Task ProcessLinesAsync()
         {
             Console.WriteLine("Connected");
-            var pipe = new Pipe();
+            var inputPipe = new Pipe();
+            var outputPipe = new Pipe();
 
-            var fillPipeTask = FillPipeAsync(connection, pipe.Writer);
-            var readPipeTask = ReadPipeAsync(connection, pipe.Reader);
+            var fillInputPipeTask = FillInputPipeAsync(_socket, inputPipe.Writer);
+            var readInputPipeTask = ReadInputPipeAsync(_socket, inputPipe.Reader);
 
-            await Task.WhenAll(fillPipeTask, readPipeTask);
+            var fillOutputPipeTask = FillOutputPipeAsync(_socket, outputPipe.Writer);
+            var readOutputPipeTask = FeadOutputPipeAsync(_socket, outputPipe.Reader);
+            
+            await Task.WhenAll(fillInputPipeTask, readInputPipeTask);
             Console.WriteLine("Disconnected");
         }
 
-        private async Task FillPipeAsync(Socket connection, PipeWriter writer)
+        private Task FeadOutputPipeAsync(Socket socket, PipeReader reader)
+        {
+            throw new NotImplementedException();
+        }
+
+        private Task FillOutputPipeAsync(Socket socket, PipeWriter writer)
+        {
+            throw new NotImplementedException();
+        }
+
+        private async Task FillInputPipeAsync(Socket connection, PipeWriter writer)
         {
             const int minimumBufferSize = 512;
 
@@ -80,7 +140,7 @@ namespace StompServer
             writer.Complete();
         }
 
-        private async Task ReadPipeAsync(Socket connection, PipeReader reader)
+        private async Task ReadInputPipeAsync(Socket connection, PipeReader reader)
         {
             var processor = new StompFrameProcessor();
             var handler = new StompRequestHandler();
@@ -105,33 +165,7 @@ namespace StompServer
             reader.Complete();
         }
 
-        private void ProcessLine(ReadOnlySequence<byte> lineBuffer)
-        {
-            if (lineBuffer.IsSingleSegment)
-            {
-                Console.WriteLine(Encoding.UTF8.GetString(lineBuffer.First.Span));
-                return;
-            }
 
-            foreach (var segment in lineBuffer)
-            {
-                Console.Write(Encoding.UTF8.GetString(segment.Span));
-            }
-
-            Console.WriteLine();
-        }
-    }
-
-    public class StompConnection
-    {
-        private readonly StompFrameProcessor _processor;
-        private readonly Socket _socket;
-
-        public StompConnection(Socket socket)
-        {
-            _socket = socket;
-            _processor = new StompFrameProcessor();
-        }
     }
 
     public class StompRequestHandler
@@ -139,6 +173,11 @@ namespace StompServer
         public void OnCommandLine(ReadOnlySpan<byte> command)
         {
             Console.WriteLine(Encoding.UTF8.GetString(command));
+        }
+
+        public void OnHeaderLine(ReadOnlySpan<byte> header)
+        {
+
         }
     }
 
