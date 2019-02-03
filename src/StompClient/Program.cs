@@ -18,7 +18,7 @@ namespace StompClient
 
                 while (true)
                 {
-                    var command = Console.ReadLine() + '\n';
+                    var command = Console.ReadLine() + "\r\n";
 
                     if (string.IsNullOrWhiteSpace(command))
                         break;
