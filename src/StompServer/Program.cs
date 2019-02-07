@@ -7,6 +7,7 @@ using System.Threading;
 using System.Buffers;
 using System.Text;
 using System.IO;
+using System.Collections.Generic;
 
 namespace StompServer
 {
@@ -47,34 +48,44 @@ namespace StompServer
     }
     public enum StompCommand : byte
     {
+        None,
         Connect,
         Stomp
     }
 
     public class StompConnection
     {
+        private enum ConnectionStatus
+        {
+            ConectionPending,
+            Connected
+        }
+
         private enum RequestProcessingStatus
         {
-            ConnectionPending,
             RequestPending,
             ParsingCommand,
             ParsingHeaders,
+            RequestComplete
         }
         private readonly StompFrameProcessor _processor;
         private readonly Socket _socket;
-        private RequestProcessingStatus _status;
+        private RequestProcessingStatus _requestProcessingStatus;
+
 
         protected PipeReader Input { get; set; }
-        protected PipeWriter Output { get; set;}
+        protected PipeWriter Output { get; set; }
 
         private StompCommand _currentCommand;
+        private Dictionary<string, string> _currentHeaders;
 
 
         public StompConnection(Socket socket)
         {
             _socket = socket;
             _processor = new StompFrameProcessor();
-            _status = RequestProcessingStatus.ConnectionPending;
+            _requestProcessingStatus = RequestProcessingStatus.RequestPending;
+            _currentHeaders = new Dictionary<string, string>();
         }
 
         public async Task ProcessRequestsAsync()
@@ -87,9 +98,8 @@ namespace StompServer
             Output = outputPipe.Writer;
 
             var fillInputPipeTask = FillInputPipeAsync(_socket, inputPipe.Writer);
-            var readInputPipeTask = ReadInputPipeAsync(_socket, inputPipe.Reader);
+            var readInputPipeTask = ProcessRequestsAsync(inputPipe.Reader); //ReadInputPipeAsync(_socket, inputPipe.Reader);
 
-            var fillOutputPipeTask = FillOutputPipeAsync(_socket, outputPipe.Writer);
             var readOutputPipeTask = ReadOutputPipeAsync(_socket, outputPipe.Reader);
 
             await Task.WhenAll(fillInputPipeTask, readInputPipeTask);
@@ -101,14 +111,14 @@ namespace StompServer
             _currentCommand = command;
         }
 
-        private Task ReadOutputPipeAsync(Socket socket, PipeReader reader)
+        public void OnHeaderLine(ReadOnlySpan<byte> key, ReadOnlySpan<byte> value)
         {
-            throw new NotImplementedException();
+            _currentHeaders.Add(Encoding.UTF8.GetString(key), Encoding.UTF8.GetString(value));
         }
 
-        private Task FillOutputPipeAsync(Socket socket, PipeWriter writer)
+        private Task ReadOutputPipeAsync(Socket socket, PipeReader reader)
         {
-            throw new NotImplementedException();
+            return Task.CompletedTask;
         }
 
         private async Task FillInputPipeAsync(Socket connection, PipeWriter writer)
@@ -145,13 +155,14 @@ namespace StompServer
             writer.Complete();
         }
 
-        private async Task ReadInputPipeAsync(Socket connection, PipeReader reader)
+        private async Task ProcessRequestsAsync(PipeReader reader)
         {
-
             while (true)
             {
                 ReadResult readResult = default;
                 bool endConnection = false;
+                _currentCommand = StompCommand.None;
+                _currentHeaders.Clear();
 
                 do
                 {
@@ -161,11 +172,15 @@ namespace StompServer
 
                 if (endConnection)
                 {
-                        return;
+                    return;
                 }
 
-                //message body               
-                
+                //message body  
+
+                Console.WriteLine("got a complete request");
+
+                DoResponse();
+
                 if (readResult.IsCompleted)
                 {
                     break;
@@ -175,12 +190,12 @@ namespace StompServer
             reader.Complete();
         }
 
-
         private bool TryParseRequest(ReadResult result, out bool endConnection)
         {
             var consumed = result.Buffer.Start;
             var examined = result.Buffer.End;
             endConnection = false;
+
             try
             {
                 ParseRequest(result.Buffer, out consumed, out examined);
@@ -192,9 +207,9 @@ namespace StompServer
 
             if (result.IsCompleted)
             {
-                switch (_status)
+                switch (_requestProcessingStatus)
                 {
-                    case RequestProcessingStatus.ConnectionPending:
+                    case RequestProcessingStatus.RequestPending:
                         endConnection = true;
                         return true;
                     case RequestProcessingStatus.ParsingCommand:
@@ -208,9 +223,12 @@ namespace StompServer
 
             endConnection = false;
 
-            //if (_status == RequestProcessingStatus.RequestPending)
-
-            return true;
+            if (_requestProcessingStatus == RequestProcessingStatus.RequestPending)
+            {
+                return true;
+            }
+            else
+                return false;
         }
 
         private void ParseRequest(ReadOnlySequence<byte> buffer, out SequencePosition consumed, out SequencePosition examined)
@@ -218,21 +236,21 @@ namespace StompServer
             consumed = buffer.Start;
             examined = buffer.End;
 
-            switch (_status)
+            switch (_requestProcessingStatus)
             {
-                case RequestProcessingStatus.ConnectionPending:
+                case RequestProcessingStatus.RequestPending:
                     if (buffer.IsEmpty)
                     {
                         break;
                     }
 
-                    _status = RequestProcessingStatus.ParsingCommand;
+                    _requestProcessingStatus = RequestProcessingStatus.ParsingCommand;
                     goto case RequestProcessingStatus.ParsingCommand;
                 case RequestProcessingStatus.ParsingCommand:
                     if (_processor.ProcessCommandLine(new StompRequestHandler(this), buffer, out consumed, out examined))
                     {
                         buffer = buffer.Slice(consumed, buffer.End);
-                        _status = RequestProcessingStatus.ParsingHeaders;
+                        _requestProcessingStatus = RequestProcessingStatus.ParsingHeaders;
                         goto case RequestProcessingStatus.ParsingHeaders;
                     }
 
@@ -240,11 +258,18 @@ namespace StompServer
                 case RequestProcessingStatus.ParsingHeaders:
                     if (_processor.ProcessHeaders(new StompRequestHandler(this), buffer, out consumed, out examined))
                     {
-                        _status = RequestProcessingStatus.RequestPending;
+                        _requestProcessingStatus = RequestProcessingStatus.RequestPending;
                     }
+
                     break;
             }
         }
+
+        private void DoResponse()
+        {
+            
+        }
+
     }
 
     public class StompRequestHandler
@@ -259,12 +284,19 @@ namespace StompServer
         public void OnCommandLine(StompCommand command)
         {
             Console.WriteLine(command.ToString());
-
+            _connection.OnCommandLine(command);
         }
 
-        public void OnHeaderLine(ReadOnlySpan<byte> header)
+        public void OnHeaderLine(ReadOnlySpan<byte> key, ReadOnlySpan<byte> value)
         {
-            Console.WriteLine(Encoding.UTF8.GetString(header));
+            Console.WriteLine("got header");
+            _connection.OnHeaderLine(key, value);
+            //_connection.OnHeaderLine()
+        }
+
+        internal void OnHeaderLine(ReadOnlySpan<byte> span)
+        {
+
         }
     }
 
@@ -304,19 +336,22 @@ namespace StompServer
             examined = buffer.End;
 
             ReadOnlySpan<byte> span = null;
-            
+
             if (TryGetNewLine(buffer, out var position))
             {
                 span = buffer.Slice(consumed, position).ToArray();
                 consumed = position;
-            }
-            else
-            {
-                return false;
-            }
 
-            handler.OnHeaderLine(span);
-            return true;
+                if (span[0] == LFChar || (span[0] == CRChar && span[1] == LFChar))
+                    return true;
+                else
+                {
+                    var colon = span.IndexOf((byte)':');
+                    handler.OnHeaderLine(span.Slice(0, colon), span.Slice(colon + 1));
+                }
+            }
+            
+            return false;  
         }
 
         private static bool TryGetNewLine(ReadOnlySequence<byte> buffer, out SequencePosition position)
@@ -334,8 +369,13 @@ namespace StompServer
         }
 
         private bool TryGetKnownCommand(ReadOnlySpan<byte> span, out StompCommand command)
-        {  
+        {
             return Enum.TryParse<StompCommand>(Encoding.UTF8.GetString(span.Slice(0, span.Length - 1)), true, out command);
         }
+    }
+
+    public class StompFrame
+    {
+        public StompCommand MyProperty { get; set; }
     }
 }

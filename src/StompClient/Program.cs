@@ -18,10 +18,7 @@ namespace StompClient
 
                 while (true)
                 {
-                    var command = Console.ReadLine() + "\r\n";
-
-                    if (string.IsNullOrWhiteSpace(command))
-                        break;
+                    var command = Console.ReadLine() + "\r\n";                   
                     
                     stream.Write(Encoding.UTF8.GetBytes(command).AsSpan());
                     stream.Flush();
