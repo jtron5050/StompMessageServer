@@ -7,6 +7,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{B5924A74-F5F
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "StompServer", "src\StompServer\StompServer.csproj", "{533CF010-64E7-4A56-974E-F8119A548766}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "StompServer.Kestrel", "src\StompServer.Kestrel\StompServer.Kestrel.csproj", "{A8E51035-66DC-4802-9E4C-570EBB965AF3}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -32,8 +34,21 @@ Global
 		{533CF010-64E7-4A56-974E-F8119A548766}.Release|x64.Build.0 = Release|Any CPU
 		{533CF010-64E7-4A56-974E-F8119A548766}.Release|x86.ActiveCfg = Release|Any CPU
 		{533CF010-64E7-4A56-974E-F8119A548766}.Release|x86.Build.0 = Release|Any CPU
+		{A8E51035-66DC-4802-9E4C-570EBB965AF3}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A8E51035-66DC-4802-9E4C-570EBB965AF3}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A8E51035-66DC-4802-9E4C-570EBB965AF3}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{A8E51035-66DC-4802-9E4C-570EBB965AF3}.Debug|x64.Build.0 = Debug|Any CPU
+		{A8E51035-66DC-4802-9E4C-570EBB965AF3}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{A8E51035-66DC-4802-9E4C-570EBB965AF3}.Debug|x86.Build.0 = Debug|Any CPU
+		{A8E51035-66DC-4802-9E4C-570EBB965AF3}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A8E51035-66DC-4802-9E4C-570EBB965AF3}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A8E51035-66DC-4802-9E4C-570EBB965AF3}.Release|x64.ActiveCfg = Release|Any CPU
+		{A8E51035-66DC-4802-9E4C-570EBB965AF3}.Release|x64.Build.0 = Release|Any CPU
+		{A8E51035-66DC-4802-9E4C-570EBB965AF3}.Release|x86.ActiveCfg = Release|Any CPU
+		{A8E51035-66DC-4802-9E4C-570EBB965AF3}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{533CF010-64E7-4A56-974E-F8119A548766} = {B5924A74-F5FC-4AD1-B32F-106E16268E7A}
+		{A8E51035-66DC-4802-9E4C-570EBB965AF3} = {B5924A74-F5FC-4AD1-B32F-106E16268E7A}
 	EndGlobalSection
 EndGlobal

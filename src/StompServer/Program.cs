@@ -118,6 +118,11 @@ namespace StompServer
             _currentHeaders.Add(Encoding.UTF8.GetString(key), Encoding.UTF8.GetString(value));
         }
 
+        public void OnBody(ReadOnlySpan<byte> body)
+        {
+
+        }
+
         private Task ReadOutputPipeAsync(Socket socket, PipeReader reader)
         {
             return Task.CompletedTask;
@@ -264,7 +269,7 @@ namespace StompServer
                 case RequestProcessingStatus.ParsingBody:
                     if (_processor.ProcessBody(new StompRequestHandler(this), buffer, out consumed, out examined))
                     {
-                        _requestProcessingStatus = RequestProcessingStatus.RequestComplete;
+                        _requestProcessingStatus = RequestProcessingStatus.RequestPending;
                     }
                     break;
             }
@@ -339,6 +344,11 @@ namespace StompServer
         {
             _connection.OnHeaderLine(key, value);
         }
+
+        public void OnBody(ReadOnlySpan<byte> body)
+        {
+            _connection.OnBody(body);
+        }
     }
 
     public class StompFrameProcessor
@@ -410,7 +420,7 @@ namespace StompServer
                 span = buffer.Slice(consumed, position).ToArray();
                 consumed = position;
                 
-                //handler.OnHeaderLine(span.Slice(0, colon), span.Slice(colon + 1));
+                handler.OnBody(span);
 
             }
 
